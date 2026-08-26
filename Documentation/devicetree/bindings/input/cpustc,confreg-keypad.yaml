@@ -1,0 +1,69 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/input/cpustc,confreg-keypad.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: CPUSTC confreg 4x4 keypad
+
+maintainers:
+  - CPUSTC maintainers <cpustcpu@users.noreply.github.com>
+
+description: |
+  The CPUSTC confreg block scans and debounces a 4x4 matrix keypad in
+  hardware. A 16-bit one-hot value reports the active key, with bit
+  row * 4 + column corresponding to each matrix position.
+
+allOf:
+  - $ref: matrix-keymap.yaml#
+
+properties:
+  compatible:
+    const: cpustc,confreg-keypad
+
+  reg:
+    maxItems: 1
+
+  poll-interval:
+    description: Poll interval in milliseconds.
+    $ref: /schemas/types.yaml#/definitions/uint32
+    minimum: 1
+    default: 10
+
+  keypad,num-rows:
+    const: 4
+
+  keypad,num-columns:
+    const: 4
+
+required:
+  - compatible
+  - reg
+  - linux,keymap
+  - keypad,num-rows
+  - keypad,num-columns
+
+unevaluatedProperties: false
+
+examples:
+  - |
+    soc {
+        #address-cells = <1>;
+        #size-cells = <1>;
+
+        keypad@1fd0f024 {
+            compatible = "cpustc,confreg-keypad";
+            reg = <0x1fd0f024 0x4>;
+            poll-interval = <10>;
+            keypad,num-rows = <4>;
+            keypad,num-columns = <4>;
+            linux,keymap = <0x0201001c  /* bit 9: KEY_ENTER */
+                            0x02020067  /* bit 10: KEY_UP */
+                            0x02030039  /* bit 11: KEY_SPACE */
+                            0x03010069  /* bit 13: KEY_LEFT */
+                            0x0302006c  /* bit 14: KEY_DOWN */
+                            0x0303006a>; /* bit 15: KEY_RIGHT */
+        };
+    };
+
+...

@@ -1,0 +1,24 @@
+CPUSTC NT35510 LCD controller
+
+The device combines the CPUSTC 16-bit 8080 LCD controller and its DMA reader
+with a fixed 480x800 NT35510 panel. The controller has no read path, so the
+compatible string selects the panel initialization data without probing an ID.
+
+Required properties:
+- compatible: must be "cpustc,nt35510-lcd"
+- reg: base address and size of the controller register window
+- interrupt-parent: phandle of the CPUSTC APB interrupt controller
+- interrupts: APB interrupt-controller input used by LCD controller events
+
+Optional properties:
+- interrupt-names: may contain "event"
+
+Example:
+
+	lcd-controller@1fe70000 {
+		compatible = "cpustc,nt35510-lcd";
+		reg = <0x1fe70000 0x30>;
+		interrupt-parent = <&cascade_intc>;
+		interrupts = <1>;
+		interrupt-names = "event";
+	};

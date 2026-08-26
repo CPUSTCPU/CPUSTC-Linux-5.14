@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/display/cpustc,vga.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: CPUSTC VGA Display Controller
+
+maintainers:
+  - CPUSTC maintainers <cpustcpu@users.noreply.github.com>
+
+description: |
+  The CPUSTC VGA controller scans RGB565 pixels from system memory through an
+  AXI read master. It provides a fixed 25 MHz VGA pixel clock, programmable
+  640x480 timing registers, a framebuffer base register and a vblank interrupt.
+
+properties:
+  compatible:
+    const: cpustc,vga
+
+  reg:
+    maxItems: 1
+
+  interrupts:
+    maxItems: 1
+
+  interrupt-names:
+    const: vblank
+
+required:
+  - compatible
+  - reg
+  - interrupts
+  - interrupt-names
+
+additionalProperties: false
+
+examples:
+  - |
+    display-controller@1fe08000 {
+        compatible = "cpustc,vga";
+        reg = <0x1fe08000 0x34>;
+        interrupt-parent = <&intc>;
+        interrupts = <2>;
+        interrupt-names = "vblank";
+    };
+
+...

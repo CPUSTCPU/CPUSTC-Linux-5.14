@@ -1,0 +1,28 @@
+CPUSTC APB interrupt controller
+
+The controller latches eight active-high interrupt inputs and combines the
+enabled pending bits onto one parent interrupt. Pending bits are cleared by
+writing one to the corresponding bit.
+
+Required properties:
+- compatible: must be "cpustc,apb-interrupt-controller"
+- reg: base address and size of the register window
+- interrupt-parent: phandle of the parent interrupt controller
+- interrupts: interrupt specifier for the single parent interrupt
+- interrupt-controller: identifies the node as an interrupt controller
+- #interrupt-cells: must be 1; the cell is the input number from 0 to 7
+
+Optional properties:
+- interrupt-names: may contain "cascade"
+
+Example:
+
+	interrupt-controller@1fe74000 {
+		compatible = "cpustc,apb-interrupt-controller";
+		reg = <0x1fe74000 0x8>;
+		interrupt-parent = <&cpuic>;
+		interrupts = <9>;
+		interrupt-names = "cascade";
+		interrupt-controller;
+		#interrupt-cells = <1>;
+	};

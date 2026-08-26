@@ -1,0 +1,57 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/auxdisplay/cpustc,dotmatrix.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: CPUSTC 8x8 LED dot matrix controller
+
+maintainers:
+  - CPUSTC maintainers <cpustcpu@users.noreply.github.com>
+
+description: |
+  The CPUSTC dot matrix controller stores a 64-bit pattern and scans eight
+  rows in hardware. Pattern bit row * 8 + column selects one LED. The board
+  wiring uses active-high rows and active-low columns.
+
+properties:
+  compatible:
+    const: cpustc,dotmatrix
+
+  reg:
+    maxItems: 1
+
+  cpustc,scan-divider:
+    description: Number of controller clock cycles for each displayed row.
+    $ref: /schemas/types.yaml#/definitions/uint32
+    minimum: 1
+    default: 33000
+
+  cpustc,default-brightness:
+    description: Initial 8-bit PWM brightness.
+    $ref: /schemas/types.yaml#/definitions/uint32
+    minimum: 0
+    maximum: 255
+    default: 255
+
+required:
+  - compatible
+  - reg
+
+additionalProperties: false
+
+examples:
+  - |
+    soc {
+        #address-cells = <1>;
+        #size-cells = <1>;
+
+        dotmatrix@1fe04300 {
+            compatible = "cpustc,dotmatrix";
+            reg = <0x1fe04300 0x14>;
+            cpustc,scan-divider = <33000>;
+            cpustc,default-brightness = <255>;
+        };
+    };
+
+...
