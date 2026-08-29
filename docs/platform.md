@@ -47,6 +47,35 @@ TensorCore 都使用这套路径。
 - LCD 驱动提供 480x800 RGB565、damage 区域 DMA、背光和恢复属性；面板没有读回和
   物理 vblank，平台设备属性可从 `/sys/bus/platform/devices` 查找。
 
+### USB 鼠标轮询
+
+`usbhid.mousepoll` 的单位是毫秒，默认值为 `0`。此时驱动不使用统一周期覆盖设备
+配置，而是让每只鼠标采用自身中断端点描述符中的轮询周期；当前上板测试中，这一
+默认策略的综合效果最好，因此不把固定轮询频率作为主要方案。
+
+上述结论的测试环境为配置 512 KiB L2 Cache 的 CPUSTC FPGA SoC；使用其他 L2
+容量或系统负载时，需要重新验证合适的轮询周期。
+
+强制周期测试表明：全速鼠标在 32 ms（31.25 Hz）下可能出现位移报告积压和明显的
+停止尾迹，低速鼠标在 4 ms（250 Hz）下表现较差。遇到特定鼠标兼容性或系统负载
+问题时，可使用 `mousepoll` 辅助覆盖设备周期；其中 8 ms（125 Hz）是兼顾已测试
+全速和低速鼠标的折中取值。
+
+用户可根据鼠标和负载调整运行时参数：
+
+```sh
+echo 0  > /sys/module/usbhid/parameters/mousepoll  # 使用设备描述符周期，默认值
+echo 4  > /sys/module/usbhid/parameters/mousepoll  # 250 Hz
+echo 8  > /sys/module/usbhid/parameters/mousepoll  # 125 Hz，可选折中值
+echo 16 > /sys/module/usbhid/parameters/mousepoll  # 62.5 Hz
+echo 32 > /sys/module/usbhid/parameters/mousepoll  # 31.25 Hz
+```
+
+参数会在 USB HID 输入 URB 创建时读取；运行时修改后需要拔插鼠标，或者重新绑定对应
+的 `usbhid` 接口。需要永久调整时，在内核命令行加入
+`usbhid.mousepoll=<毫秒数>`。Full-Speed 和 Low-Speed 中断周期会由 USB core 向下
+取整到不大于配置值的 2 的幂；当前 OHCI 驱动还会把大于 32 ms 的周期限制为 32 ms。
+
 ### TensorCore
 
 `CPUSTC_TENSOR_IOC_RUN` 接收 `4x4` FP32 矩阵，`K` 范围为 1 至 256，返回结果和
