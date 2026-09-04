@@ -54,7 +54,6 @@ docs/platform.md                    CPUSTC 平台说明、构建与验证
 - [文档索引](docs/README.md)
 - [平台与硬件适配](docs/platform.md)
 - [Linux 上游文档](Documentation/)
-- [变更与验证记录](note.md)
 
 ## Validation
 

@@ -99,8 +99,6 @@
 #define CPUSTC_2D_IDENTIFICATION	0x12c
 #define CPUSTC_2D_CAPABILITIES		0x130
 #define CPUSTC_2D_VERSION		0x134
-#define CPUSTC_2D_SRC_SIZE		0x138
-#define CPUSTC_2D_DST_SIZE		0x13c
 
 #define CPUSTC_2D_STATUS_BUSY		BIT(0)
 #define CPUSTC_2D_STATUS_DONE		BIT(1)
@@ -108,9 +106,8 @@
 #define CPUSTC_2D_IDENTIFICATION_VALUE	0x32444750
 #define CPUSTC_2D_TIMEOUT_US		1000000
 #define CPUSTC_2D_BATCH_MAX_PIXELS	131072
-#define CPUSTC_2D_YUYV_MAX_WIDTH	1024
 #define CPUSTC_2D_INTERFACE_VERSION_MIN	1
-#define CPUSTC_2D_INTERFACE_VERSION_MAX	2
+#define CPUSTC_2D_INTERFACE_VERSION_MAX	1
 
 struct cpustc_vga {
 	struct drm_device drm;
@@ -122,9 +119,6 @@ struct cpustc_vga {
 	bool has_two_d;
 	u32 two_d_capabilities;
 	u32 two_d_version;
-	u64 two_d_yuyv_scale_submits;
-	u64 two_d_yuyv_scale_pixels;
-	u64 two_d_yuyv_scale_failures;
 	bool has_cursor;
 	bool cursor_active;
 	u8 cursor_bank;
@@ -441,135 +435,6 @@ out_free:
 	return ret;
 }
 
-static int cpustc_2d_validate_yuyv(struct drm_gem_object *obj, u32 stride,
-				   u16 x, u16 y, u16 width, u16 height)
-{
-	u64 row_end = ((u64)x + width) * 2;
-	u64 end;
-
-	if (!width || !height || (x & 1) || (width & 1) ||
-	    !stride || (stride & 3) || row_end > stride)
-		return -EINVAL;
-	end = (u64)(y + height - 1) * stride + row_end;
-	return end <= obj->size ? 0 : -EINVAL;
-}
-
-static int cpustc_2d_validate_yuyv_scale(
-	const struct drm_cpustc_2d_yuyv_scale *args,
-	const struct cpustc_2d_buffers *buffers)
-{
-	u32 src_right = (u32)args->src_x + args->src_width;
-	u32 src_bottom = (u32)args->src_y + args->src_height;
-	u32 dst_right = (u32)args->dst_x + args->dst_width;
-	u32 dst_bottom = (u32)args->dst_y + args->dst_height;
-	int ret;
-
-	if ((buffers->src->paddr & 3) || (buffers->dst->paddr & 3))
-		return -EINVAL;
-	if (args->src_width > CPUSTC_2D_YUYV_MAX_WIDTH ||
-	    args->dst_width < args->src_width ||
-	    args->dst_height < args->src_height ||
-	    (args->dst_x & 1) || (args->dst_width & 1) ||
-	    (args->dst_stride & 3) ||
-	    src_right > 1U << 16 || src_bottom > 1U << 16 ||
-	    dst_right > 1U << 16 || dst_bottom > 1U << 16 ||
-	    buffers->src_gem == buffers->dst_gem)
-		return -EINVAL;
-
-	ret = cpustc_2d_validate_yuyv(buffers->src_gem, args->src_stride,
-				       args->src_x, args->src_y,
-				       args->src_width, args->src_height);
-	if (ret)
-		return ret;
-	return cpustc_2d_validate_rgb565(buffers->dst_gem, args->dst_stride,
-					 args->dst_x, args->dst_y,
-					 args->dst_width, args->dst_height);
-}
-
-static int cpustc_2d_yuyv_scale_ioctl(struct drm_device *drm, void *data,
-				      struct drm_file *file)
-{
-	struct drm_cpustc_2d_yuyv_scale *args = data;
-	struct cpustc_vga *vga = drm_to_cpustc_vga(drm);
-	struct cpustc_2d_buffers buffers = {};
-	u32 status;
-	int ret;
-
-	if (args->flags || memchr_inv(args->reserved, 0, sizeof(args->reserved)))
-		return -EINVAL;
-	if (!vga->has_two_d)
-		return -ENODEV;
-	if (!(vga->two_d_capabilities & DRM_CPUSTC_2D_CAP_YUYV_SCALE))
-		return -EOPNOTSUPP;
-
-	buffers.src_gem = drm_gem_object_lookup(file, args->src_handle);
-	if (!buffers.src_gem)
-		return -ENOENT;
-	buffers.src = to_drm_gem_cma_obj(buffers.src_gem);
-	if (!cpustc_2d_dma_address_valid(buffers.src)) {
-		ret = -ERANGE;
-		goto out_put;
-	}
-	buffers.dst_gem = drm_gem_object_lookup(file, args->dst_handle);
-	if (!buffers.dst_gem) {
-		ret = -ENOENT;
-		goto out_put;
-	}
-	buffers.dst = to_drm_gem_cma_obj(buffers.dst_gem);
-	if (!cpustc_2d_dma_address_valid(buffers.dst)) {
-		ret = -ERANGE;
-		goto out_put;
-	}
-	ret = cpustc_2d_validate_yuyv_scale(args, &buffers);
-	if (ret)
-		goto out_put;
-
-	ret = mutex_lock_interruptible(&vga->two_d_lock);
-	if (ret)
-		goto out_put;
-	writel(CPUSTC_2D_STATUS_DONE | CPUSTC_2D_STATUS_ERROR,
-	       vga->regs + CPUSTC_2D_STATUS);
-	writel(lower_32_bits(buffers.src->paddr),
-	       vga->regs + CPUSTC_2D_SRC_ADDRESS);
-	writel(lower_32_bits(buffers.dst->paddr),
-	       vga->regs + CPUSTC_2D_DST_ADDRESS);
-	writel(args->src_stride, vga->regs + CPUSTC_2D_SRC_STRIDE);
-	writel(args->dst_stride, vga->regs + CPUSTC_2D_DST_STRIDE);
-	writel(((u32)args->src_y << 16) | args->src_x,
-	       vga->regs + CPUSTC_2D_SRC_XY);
-	writel(((u32)args->dst_y << 16) | args->dst_x,
-	       vga->regs + CPUSTC_2D_DST_XY);
-	writel(((u32)args->src_height << 16) | args->src_width,
-	       vga->regs + CPUSTC_2D_SRC_SIZE);
-	writel(((u32)args->dst_height << 16) | args->dst_width,
-	       vga->regs + CPUSTC_2D_DST_SIZE);
-	/* Publish YUYV source-buffer writes and all registers before COMMAND. */
-	wmb();
-	writel(DRM_CPUSTC_2D_YUYV_SCALE, vga->regs + CPUSTC_2D_COMMAND);
-
-	ret = readl_poll_timeout(vga->regs + CPUSTC_2D_STATUS, status,
-				 !(status & CPUSTC_2D_STATUS_BUSY), 10,
-				 CPUSTC_2D_TIMEOUT_US);
-	if (!ret && (!(status & CPUSTC_2D_STATUS_DONE) ||
-		     (status & CPUSTC_2D_STATUS_ERROR)))
-		ret = -EIO;
-	/* Order completed framebuffer DMA writes before ioctl return. */
-	rmb();
-	writel(status & (CPUSTC_2D_STATUS_DONE | CPUSTC_2D_STATUS_ERROR),
-	       vga->regs + CPUSTC_2D_STATUS);
-	vga->two_d_yuyv_scale_submits++;
-	if (ret)
-		vga->two_d_yuyv_scale_failures++;
-	else
-		vga->two_d_yuyv_scale_pixels +=
-			(u64)args->dst_width * args->dst_height;
-	mutex_unlock(&vga->two_d_lock);
-
-out_put:
-	cpustc_2d_put_buffers(&buffers);
-	return ret;
-}
-
 static int cpustc_2d_get_caps_ioctl(struct drm_device *drm, void *data,
 				    struct drm_file *file)
 {
@@ -591,8 +456,6 @@ static const struct drm_ioctl_desc cpustc_vga_ioctls[] = {
 	DRM_IOCTL_DEF_DRV(CPUSTC_2D_GET_CAPS, cpustc_2d_get_caps_ioctl, DRM_AUTH),
 	DRM_IOCTL_DEF_DRV(CPUSTC_2D_SUBMIT_BATCH,
 			cpustc_2d_submit_batch_ioctl, DRM_AUTH),
-	DRM_IOCTL_DEF_DRV(CPUSTC_2D_YUYV_SCALE,
-			cpustc_2d_yuyv_scale_ioctl, DRM_AUTH),
 };
 
 static const struct drm_display_mode cpustc_vga_mode = {
@@ -1070,12 +933,6 @@ static int cpustc_2d_debugfs_show(struct seq_file *m, void *arg)
 	seq_printf(m, "hardware_present: %u\n", vga->has_two_d);
 	seq_printf(m, "version: %u\n", vga->two_d_version);
 	seq_printf(m, "capabilities: %#x\n", vga->two_d_capabilities);
-	seq_printf(m, "yuyv_scale_submits: %llu\n",
-		   (unsigned long long)READ_ONCE(vga->two_d_yuyv_scale_submits));
-	seq_printf(m, "yuyv_scale_pixels: %llu\n",
-		   (unsigned long long)READ_ONCE(vga->two_d_yuyv_scale_pixels));
-	seq_printf(m, "yuyv_scale_failures: %llu\n",
-		   (unsigned long long)READ_ONCE(vga->two_d_yuyv_scale_failures));
 	return 0;
 }
 

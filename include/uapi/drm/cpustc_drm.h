@@ -12,13 +12,11 @@ enum drm_cpustc_2d_operation {
 	DRM_CPUSTC_2D_FILL_RECT = 1,
 	DRM_CPUSTC_2D_COPY_AREA = 2,
 	DRM_CPUSTC_2D_IMAGE_BLIT1 = 3,
-	DRM_CPUSTC_2D_YUYV_SCALE = 4,
 };
 
 #define DRM_CPUSTC_2D_CAP_FILL_RECT	(1U << 0)
 #define DRM_CPUSTC_2D_CAP_COPY_AREA	(1U << 1)
 #define DRM_CPUSTC_2D_CAP_IMAGE_BLIT1	(1U << 2)
-#define DRM_CPUSTC_2D_CAP_YUYV_SCALE	(1U << 3)
 #define DRM_CPUSTC_2D_CAP_RGB565		(1U << 8)
 #define DRM_CPUSTC_2D_CAP_OVERLAP_COPY	(1U << 9)
 #define DRM_CPUSTC_2D_CAP_BATCH		(1U << 16)
@@ -93,35 +91,9 @@ struct drm_cpustc_2d_batch {
 	__u32 reserved[4];
 };
 
-/**
- * struct drm_cpustc_2d_yuyv_scale - synchronous YUYV to RGB565 scaling
- *
- * Coordinates and dimensions are pixels; strides are bytes. The source is
- * packed YUYV 4:2:2 and the destination is RGB565. Version 2 hardware accepts
- * even source/destination x coordinates and widths, a source width no greater
- * than 1024 pixels, and nearest-neighbour upscaling.
- */
-struct drm_cpustc_2d_yuyv_scale {
-	__u32 flags;
-	__u32 src_handle;
-	__u32 dst_handle;
-	__u32 src_stride;
-	__u32 dst_stride;
-	__u16 src_x;
-	__u16 src_y;
-	__u16 src_width;
-	__u16 src_height;
-	__u16 dst_x;
-	__u16 dst_y;
-	__u16 dst_width;
-	__u16 dst_height;
-	__u32 reserved[4];
-};
-
 #define DRM_CPUSTC_2D_SUBMIT 0x00
 #define DRM_CPUSTC_2D_GET_CAPS 0x01
 #define DRM_CPUSTC_2D_SUBMIT_BATCH 0x02
-#define DRM_CPUSTC_2D_SUBMIT_YUYV_SCALE 0x03
 #define DRM_IOCTL_CPUSTC_2D_SUBMIT \
 	DRM_IOW(DRM_COMMAND_BASE + DRM_CPUSTC_2D_SUBMIT, \
 		struct drm_cpustc_2d_submit)
@@ -131,9 +103,6 @@ struct drm_cpustc_2d_yuyv_scale {
 #define DRM_IOCTL_CPUSTC_2D_SUBMIT_BATCH \
 	DRM_IOWR(DRM_COMMAND_BASE + DRM_CPUSTC_2D_SUBMIT_BATCH, \
 		 struct drm_cpustc_2d_batch)
-#define DRM_IOCTL_CPUSTC_2D_YUYV_SCALE \
-	DRM_IOW(DRM_COMMAND_BASE + DRM_CPUSTC_2D_SUBMIT_YUYV_SCALE, \
-		struct drm_cpustc_2d_yuyv_scale)
 
 #if defined(__cplusplus)
 }
