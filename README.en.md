@@ -55,7 +55,6 @@ docs/platform.md                    CPUSTC platform, build, and validation notes
 - [Chinese documentation index](docs/README.md)
 - [Platform and hardware](docs/platform.md)
 - [Upstream Linux documentation](Documentation/)
-- [Change and validation notes](note.md)
 
 ## Validation
 
